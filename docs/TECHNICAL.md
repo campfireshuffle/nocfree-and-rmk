@@ -191,6 +191,8 @@ The startup hook arms a roughly 10-second hardware watchdog before normal RMK in
 
 For physical recovery, identify RESET and ground on the board revision first. The [vendor video](https://www.youtube.com/watch?v=jGfepV1DYVE) shows the right half. Keep the bootloader, UICR and protected regions intact.
 
+On the tested ANSI left half, we recovered software access by opening the back cover with USB unplugged, then connecting USB with the switch in middle WIRED. We connected the previously identified module contact to the battery-negative board contact through a roughly 1 kΩ resistor for about one second, then removed the resistor. The factory recovery drive appeared, allowing the saved firmware to be restored. In that session, the module contact was labelled A, the fourth large pad from the top on the module's right-side row; this description depends on the board orientation and revision and is not a pinout for other boards. Use the verified contacts for your board, not two pads chosen by position alone. Remove USB and all leads before reassembly.
+
 ### macOS volume permission
 
 If macOS blocks access to the recovery drive, quit Companion and reset its removable-volume permission:
