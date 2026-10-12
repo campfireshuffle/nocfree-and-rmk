@@ -1,6 +1,6 @@
 # Technical guide
 
-Companion and firmware use version 1.0.3. The firmware uses upstream RMK and keeps the factory bootloader. This guide covers board code, recovery, builds and releases.
+Companion uses version 1.1.1 and bundles unchanged firmware 1.1.0. The firmware uses upstream RMK and keeps the factory bootloader. This guide covers board code, recovery, builds and releases.
 
 ## Keyboard setup
 
@@ -291,7 +291,7 @@ The notice generator checks the recorded source hashes and license texts. Update
 
 Release jobs build the app first. A protected job signs the build with a temporary keychain in the main-branch release environment. Verify the archive checksums, bundled firmware manifest and license notices. On macOS, also check the Developer ID signature, notarization ticket and Gatekeeper result.
 
-Use the same version for Companion and firmware. Put the checked firmware package in a draft of the new app release, then start the release workflow with that draft's tag and the package SHA256. A staging job retrieves the draft asset; the read-only builds check it and bundle it in all three apps. The signing job adds the app downloads to the same draft. Firmware and app downloads share one release.
+Use the same version when Companion and firmware change together. App-only patches can reuse the pinned firmware package without rebuilding it. Put the checked firmware package in a draft of the new app release, then start the release workflow with that draft's tag and the package SHA256. A staging job retrieves the draft asset; the read-only builds check it and bundle it in all three apps. The signing job adds the app downloads to the same draft. Firmware and app downloads share one release.
 
 The project site is in `website/public/`. Deploy it from `website/` with `npx wrangler@4.127.1 deploy`. Its custom domain is `nocfree-rmk.lil.run`; the `lil.run` Search Console domain property covers it.
 

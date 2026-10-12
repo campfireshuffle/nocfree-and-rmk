@@ -90,8 +90,6 @@ jobs:
           cargo_version="$(cargo metadata --manifest-path desktop/Cargo.toml --locked --no-deps --format-version 1 | python3 -c 'import json,sys; print(next(p["version"] for p in json.load(sys.stdin)["packages"] if p["name"] == "nocfree-companion"))')"
           [[ "$REQUESTED_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
           [[ "$REQUESTED_VERSION" == "$cargo_version" ]]
-          firmware_version="$(python3 -c 'import tomllib; print(tomllib.load(open("firmware/Cargo.toml", "rb"))["package"]["version"])')"
-          [[ "$REQUESTED_VERSION" == "$firmware_version" ]]
           [[ "$(uname -m)" == arm64 ]]
           tag="v${REQUESTED_VERSION}"
           if draft="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null)"; then
@@ -127,7 +125,7 @@ jobs:
           set -euo pipefail
           [[ "$FIRMWARE_SHA256" =~ ^[a-f0-9]{64}$ ]]
           python3 scripts/unpack_companion_release.py --input "$RUNNER_TEMP/firmware-input/companion-firmware.zip" --sha256 "$FIRMWARE_SHA256" --output dist/companion-firmware
-          python3 -c 'import json,tomllib; assert json.load(open("dist/companion-firmware/manifest.json"))["version"] == tomllib.load(open("desktop/Cargo.toml", "rb"))["package"]["version"]'
+          python3 -c 'import json,tomllib; assert json.load(open("dist/companion-firmware/manifest.json"))["version"] == tomllib.load(open("firmware/Cargo.toml", "rb"))["package"]["version"]'
 
       - name: Validate publication notices and release notes
         env:
@@ -150,9 +148,11 @@ jobs:
           cp "$RUNNER_TEMP/firmware-input/companion-firmware.zip" "$RUNNER_TEMP/release-input/companion-firmware.zip"
           ditto -c -k --keepParent "dist/NocFree RMK Companion.app" "$RUNNER_TEMP/release-input/nocfree-rmk-companion-unsigned.zip"
           cat > "$RUNNER_TEMP/release-input/${VERSION}.md" <<'NOTES'
-          Create macros, key combos and Tap Dance actions in Vial.
+          Update checks and GitHub links use the new project address.
 
-          The app includes firmware for ANSI, ISO, JIS and KR keyboards.
+          On Mac, allow Bluetooth and recovery-drive access if macOS asks.
+
+          Keyboard firmware is unchanged. No firmware update is needed.
           NOTES
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

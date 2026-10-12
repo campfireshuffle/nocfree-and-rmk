@@ -1,7 +1,7 @@
 {
   "desktop": {
-    "cargo_lock_sha256": "a238b0da49582739e28eb625a2d850f2b4eeff97a23040eb458abe86937c1f53",
-    "cargo_manifest_sha256": "3341bd279ae81edf2f469fe8989f07f12a0815b843434966aa85a1089fe8e892",
+    "cargo_lock_sha256": "03a873606e36ceabc5e46f91ba71151e7540bff8f7673f936abc1a2135024727",
+    "cargo_manifest_sha256": "ff83042fa3091cc151c73e39b89bc00c124d3aa766d904660981ecfe62074810",
     "packages": [
       {
         "license": "MIT OR Apache-2.0",

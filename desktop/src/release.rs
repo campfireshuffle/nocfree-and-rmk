@@ -409,7 +409,7 @@ mod tests {
         // Packaging is required before this integration test, never silently skipped.
         let release = FirmwareRelease::load_from(&source).unwrap();
         assert_eq!(release.image(Role::Right).proof.role(), Role::Right);
-        assert_eq!(release.version(), env!("CARGO_PKG_VERSION"));
+        assert_eq!(release.version(), "1.1.0");
         assert!(release.supports_layout(KeyboardLayout::Iso));
         assert!(release.supports_layout(KeyboardLayout::Jis));
         assert!(release.supports_layout(KeyboardLayout::Kr));
