@@ -34,17 +34,12 @@ binary="${CARGO_TARGET_DIR:-target}/$profile/nocfree-companion"
 # A bundle without its pinned package must never look like a successful build.
 "$binary" --check-firmware "$firmware"
 name='NocFree RMK Companion'
-identifier='io.github.sarimabbas.nocfree-companion'
+identifier='run.lil.nocfree-companion'
 if [ "$trial" = 1 ]; then
     name='NocFree RMK Companion Trial'
     identifier="$identifier.trial"
 fi
 bundle="../dist/$name.app"
-# Preserve the existing generated bundle when adopting its visible product name.
-legacy_bundle='../dist/NocFree Companion.app'
-if [ "$trial" = 0 ] && [ ! -d "$bundle" ] && [ -d "$legacy_bundle" ]; then
-    mv "$legacy_bundle" "$bundle"
-fi
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources"
 icon_work=$(mktemp -d "${TMPDIR:-/tmp}/nocfree-icon.XXXXXX")
 trap 'rm -rf "$icon_work"' EXIT HUP INT TERM
