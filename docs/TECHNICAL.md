@@ -177,7 +177,7 @@ Backlights use 400 Hz PWM with 16 brightness levels, saved brightness and split 
 
 The left blue light blinks while seeking the selected wireless host. After connection it stays on for 30 seconds, then turns off. The red light shows charging, not USB mode. Charging can mix red with blue. The right has no host-mode indicator because it only links to the left.
 
-Battery conversion uses `BatteryProcessor::new(100, 150)`. Calibration work is tracked in [issue #7](https://github.com/sarimabbas/nocfree-and-rmk/issues/7). To adjust the conversion, compare raw ADC counts with cell voltage and discharge measurements.
+Battery conversion uses `BatteryProcessor::new(100, 150)`. Calibration work is tracked in [issue #7](https://github.com/campfireshuffle/nocfree-and-rmk/issues/7). To adjust the conversion, compare raw ADC counts with cell voltage and discharge measurements.
 
 ## Recovery and backup
 
@@ -276,7 +276,7 @@ Include the app version, OS, affected part, switch positions, USB connections, e
 
 Keep changes focused and include the reason and test results in the pull request. Discuss larger changes in an issue first. Use independent implementation and review passes for substantial changes, with clear file ownership. Commit reviewed changes with concise Conventional Commit messages. Keep factory firmware, recovery executables, credentials, local device identifiers and generated binaries out of Git.
 
-Report security flaws through [GitHub private vulnerability reporting](https://github.com/sarimabbas/nocfree-and-rmk/security/advisories/new), with the affected version and steps to reproduce the problem.
+Report security flaws through [GitHub private vulnerability reporting](https://github.com/campfireshuffle/nocfree-and-rmk/security/advisories/new), with the affected version and steps to reproduce the problem.
 
 ## Releases and licenses
 

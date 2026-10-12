@@ -8,9 +8,9 @@ Install RMK on your NocFree AND keyboard with a [guided app](https://nocfree-rmk
 
 | Computer | App |
 | --- | --- |
-| Mac with Apple Silicon | [Download for Mac](https://github.com/sarimabbas/nocfree-and-rmk/releases/latest/download/nocfree-rmk-companion-macos-arm64.zip) |
-| Windows, 64-bit | [Download for Windows](https://github.com/sarimabbas/nocfree-and-rmk/releases/latest/download/nocfree-rmk-companion-windows-x86_64.zip) |
-| Linux, 64-bit | [Download for Linux](https://github.com/sarimabbas/nocfree-and-rmk/releases/latest/download/nocfree-rmk-companion-linux-x86_64.tar.gz) |
+| Mac with Apple Silicon | [Download for Mac](https://github.com/campfireshuffle/nocfree-and-rmk/releases/latest/download/nocfree-rmk-companion-macos-arm64.zip) |
+| Windows, 64-bit | [Download for Windows](https://github.com/campfireshuffle/nocfree-and-rmk/releases/latest/download/nocfree-rmk-companion-windows-x86_64.zip) |
+| Linux, 64-bit | [Download for Linux](https://github.com/campfireshuffle/nocfree-and-rmk/releases/latest/download/nocfree-rmk-companion-linux-x86_64.tar.gz) |
 
 On Mac, open the ZIP file and move **NocFree RMK Companion** to **Applications**.
 
@@ -19,7 +19,7 @@ On Windows, open the ZIP file, keep all its files together, then open **nocfree-
 On Mac, you can also use Homebrew:
 
 ```sh
-brew install --cask sarimabbas/tap/nocfree-rmk-companion
+brew install --cask campfireshuffle/tap/nocfree-rmk-companion
 ```
 
 ## Start here
@@ -78,4 +78,4 @@ These projects offer different ways to use the NocFree AND keyboard.
 
 ## Need help?
 
-If you need help, use **Help → Export diagnostic logs** to save a ZIP file. Attach it to a [problem report](https://github.com/sarimabbas/nocfree-and-rmk/issues/new/choose).
+If you need help, use **Help → Export diagnostic logs** to save a ZIP file. Attach it to a [problem report](https://github.com/campfireshuffle/nocfree-and-rmk/issues/new/choose).

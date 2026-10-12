@@ -141,10 +141,10 @@ fn configure_menus(cx: &mut App) {
         );
     });
     cx.on_action(|_: &Help, cx| {
-        cx.open_url("https://github.com/sarimabbas/nocfree-and-rmk/blob/main/README.md")
+        cx.open_url("https://github.com/campfireshuffle/nocfree-and-rmk/blob/main/README.md")
     });
     cx.on_action(|_: &ReportIssue, cx| {
-        cx.open_url("https://github.com/sarimabbas/nocfree-and-rmk/issues/new")
+        cx.open_url("https://github.com/campfireshuffle/nocfree-and-rmk/issues/new")
     });
     cx.on_action(|_: &ShowLogs, cx| {
         if let Err(error) = diagnostics::open_logs() {

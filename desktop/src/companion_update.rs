@@ -4,10 +4,10 @@ use std::{cmp::Ordering, io::Read, time::Duration};
 use semver::Version;
 use serde::Deserialize;
 
-pub(crate) const REPOSITORY_URL: &str = "https://github.com/sarimabbas/nocfree-and-rmk";
+pub(crate) const REPOSITORY_URL: &str = "https://github.com/campfireshuffle/nocfree-and-rmk";
 pub(crate) const DOWNLOAD_URL: &str =
-    "https://github.com/sarimabbas/nocfree-and-rmk/releases/latest";
-const RELEASE_API: &str = "https://api.github.com/repos/sarimabbas/nocfree-and-rmk/releases/latest";
+    "https://github.com/campfireshuffle/nocfree-and-rmk/releases/latest";
+const RELEASE_API: &str = "https://api.github.com/repos/campfireshuffle/nocfree-and-rmk/releases/latest";
 const MAX_RESPONSE_BYTES: u64 = 256 * 1024;
 
 #[derive(Deserialize)]
