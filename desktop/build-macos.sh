@@ -34,7 +34,7 @@ binary="${CARGO_TARGET_DIR:-target}/$profile/nocfree-companion"
 # A bundle without its pinned package must never look like a successful build.
 "$binary" --check-firmware "$firmware"
 name='NocFree RMK Companion'
-identifier='run.lil.nocfree-companion'
+identifier='run.lil.nocfree-rmk'
 if [ "$trial" = 1 ]; then
     name='NocFree RMK Companion Trial'
     identifier="$identifier.trial"

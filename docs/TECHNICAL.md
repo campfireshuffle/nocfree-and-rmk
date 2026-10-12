@@ -198,7 +198,7 @@ On the tested ANSI left half, we recovered software access by opening the back c
 If macOS blocks access to the recovery drive, quit Companion and reset its removable-volume permission:
 
 ```sh
-tccutil reset SystemPolicyRemovableVolumes run.lil.nocfree-companion
+tccutil reset SystemPolicyRemovableVolumes run.lil.nocfree-rmk
 ```
 
 Reopen Companion and allow access when macOS asks.
