@@ -42,7 +42,7 @@ jobs:
           [[ "$FIRMWARE_SHA256" =~ ^[a-f0-9]{64}$ ]]
           gh release download "$FIRMWARE_TAG" --repo "$GITHUB_REPOSITORY" --pattern companion-firmware.zip --dir "$RUNNER_TEMP/firmware-input"
           echo "$FIRMWARE_SHA256  $RUNNER_TEMP/firmware-input/companion-firmware.zip" | sha256sum --check
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: companion-firmware-input
           path: ${{ runner.temp }}/firmware-input/companion-firmware.zip
@@ -113,7 +113,7 @@ jobs:
           cargo test --manifest-path desktop/Cargo.toml --locked --lib
           cargo clippy --manifest-path desktop/Cargo.toml --locked --all-targets -- -D warnings
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: companion-firmware-input
           path: ${{ runner.temp }}/firmware-input
@@ -155,7 +155,7 @@ jobs:
           Keyboard firmware is unchanged. No firmware update is needed.
           NOTES
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nocfree-rmk-companion-unsigned-${{ steps.version.outputs.version }}
           path: ${{ runner.temp }}/release-input/
@@ -217,7 +217,7 @@ jobs:
         run: |
           cargo test --manifest-path desktop/Cargo.toml --locked --lib
           cargo clippy --manifest-path desktop/Cargo.toml --locked --all-targets -- -D warnings
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: companion-firmware-input
           path: ${{ runner.temp }}/firmware-input
@@ -249,7 +249,7 @@ jobs:
           test -s "$archive"
           test -s "${archive}.sha256"
           cp "$archive" "${archive}.sha256" "$RUNNER_TEMP/portable/"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nocfree-rmk-companion-portable-${{ matrix.platform }}
           path: ${{ runner.temp }}/portable/
@@ -267,12 +267,12 @@ jobs:
       VERSION: ${{ needs.build.outputs.version }}
 
     steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nocfree-rmk-companion-unsigned-${{ needs.build.outputs.version }}
           path: ${{ runner.temp }}/input
 
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: nocfree-rmk-companion-portable-*
           merge-multiple: true
