@@ -2,7 +2,7 @@
 
 Install RMK on your NocFree AND keyboard with a [guided app](https://nocfree-rmk.lil.run/) for Mac, Windows and Linux. USB, Bluetooth and dongle supported.
 
-![Choose the keyboard parts to update](docs/images/install-rmk.png)
+![The NocFree RMK Companion app, choosing which keyboard parts to install RMK on](docs/images/preview.webp)
 
 ## Download
 
