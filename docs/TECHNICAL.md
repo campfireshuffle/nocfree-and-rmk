@@ -185,6 +185,8 @@ Use **Companion → Enter recovery mode**, choose a part, and follow the instruc
 
 Install RMK keeps a separate original backup for each half and the dongle. Backups contain the application and system settings. The MBR, bootloader and UICR stay on the board. When restoring an application-only factory UF2, Companion can use the original backup to restore system settings. Use the backup for the selected part.
 
+An interrupted original capture can leave a complete archive without its factory provenance record. Companion keeps that original unavailable for restoration while allowing a fresh correlated factory session to finish the exact same capture. It never replaces the unfinished original with different bytes. Complete originals for other parts remain available.
+
 USB can power the right MCU while its battery switch is OFF. If the right remains in recovery after a write, turn it OFF and remove USB before restarting as instructed. For the factory right-half Fn+0 recovery procedure, keep the left connected.
 
 The startup hook arms a roughly 10-second hardware watchdog before normal RMK initialization. RMK feeds it every five seconds. A watchdog reset causes the hook to request the factory bootloader using `GPREGRET = 0x57`. Companion can also request recovery directly through USB. The watchdog resets the board when its feeder stops.
