@@ -1120,7 +1120,7 @@ impl Companion {
         body
     }
     fn observe_preflight(&mut self) {
-        let mut ready = crate::firmware_preflight::assess_scoped(
+        let ready = crate::firmware_preflight::assess_scoped(
             self.navigation.page(),
             &self.device_key,
             &self.firmware_versions,
@@ -1135,12 +1135,6 @@ impl Companion {
                 .is_some_and(|t| t.elapsed() < Duration::from_secs(5)),
             self.navigation.scope(),
         );
-        if self.navigation.page() == Page::Firmware
-            && self.navigation.layout() != KeyboardLayout::Ansi
-            && ready == crate::navigation::Readiness::AlreadyLatest
-        {
-            ready = crate::navigation::Readiness::Needed;
-        }
         self.navigation.observe(ready);
     }
     fn start_selected_journey(&mut self, cx: &mut Context<Self>) {
