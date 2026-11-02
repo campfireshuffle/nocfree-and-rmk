@@ -85,6 +85,7 @@ pub(crate) fn assess_scoped(
         return Readiness::Unknown;
     };
     let roles = scope.roles();
+    let includes_half = roles.iter().any(|role| *role != Role::Receiver);
     for role in roles {
         let matching: Vec<_> = devices
             .iter()
@@ -105,7 +106,13 @@ pub(crate) fn assess_scoped(
             return Readiness::Needed;
         }
     }
-    Readiness::AlreadyLatest
+    // Versions do not identify the halves' physical layout. Recovery readback
+    // must compare the selected image before deciding that no write is needed.
+    if includes_half {
+        Readiness::Needed
+    } else {
+        Readiness::AlreadyLatest
+    }
 }
 #[cfg(test)]
 mod tests {
@@ -133,11 +140,61 @@ mod tests {
         (key, versions)
     }
     #[test]
-    fn whole_release_requires_every_part_and_matching_live_versions() {
+    fn same_version_halves_can_start_every_layout_installation() {
+        use crate::{
+            keyboard_layout::KeyboardLayout,
+            navigation::{Navigation, Start},
+        };
+        let (key, versions) = rmk();
+        // Version observations carry no installed-layout identity. Every requested
+        // layout, including ANSI, must reach recovery's exact-image comparison.
+        for layout in KeyboardLayout::ALL {
+            for scope in [
+                Scope::Part(Role::Left),
+                Scope::Part(Role::Right),
+                Scope::Pair(Role::Left, Role::Right),
+                Scope::Pair(Role::Left, Role::Receiver),
+                Scope::Pair(Role::Right, Role::Receiver),
+                Scope::Whole,
+            ] {
+                let mut nav = Navigation::with_layout(layout);
+                nav.observe_available([true; 3]);
+                nav.observe_layouts(&KeyboardLayout::ALL);
+                nav.select_scope(scope);
+                nav.observe(assess_scoped(
+                    Page::Firmware,
+                    &key,
+                    &versions,
+                    Some("1.2.3"),
+                    true,
+                    nav.scope(),
+                ));
+                assert!(nav.can_start(), "{layout:?} {scope:?}");
+                assert_eq!(nav.next(), Some(Start::Firmware(scope)));
+            }
+        }
+    }
+    #[test]
+    fn same_version_receiver_remains_current_without_layout_evidence() {
+        let (key, versions) = rmk();
+        assert_eq!(
+            assess_scoped(
+                Page::Firmware,
+                &key,
+                &versions,
+                Some("1.2.3"),
+                true,
+                Some(Scope::Part(Role::Receiver)),
+            ),
+            Readiness::AlreadyLatest
+        );
+    }
+    #[test]
+    fn whole_release_requires_readback_even_with_matching_live_versions() {
         let (mut key, mut versions) = rmk();
         assert_eq!(
             assess(Page::Firmware, &key, &versions, Some("1.2.3"), true),
-            Readiness::AlreadyLatest
+            Readiness::Needed
         );
         assert_eq!(
             assess(Page::Firmware, &key, &versions, Some("1.2.3"), false),
@@ -174,7 +231,7 @@ mod tests {
                 true,
                 Some(Scope::Part(Role::Right))
             ),
-            Readiness::AlreadyLatest
+            Readiness::Needed
         );
         assert_eq!(
             assess_scoped(
