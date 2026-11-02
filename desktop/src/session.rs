@@ -32,6 +32,7 @@ pub struct Session {
     role: Option<Role>,
     archive_only: bool,
     recovery_role: Option<crate::runtime_recovery::Role>,
+    runtime_recovery: Option<(Role, u64)>,
     location: Option<u64>,
     ready: Option<BootMount>,
     normal_present: bool,
@@ -58,11 +59,23 @@ impl Session {
     /// confirmed for this part. The caller validates live identity and drive metadata.
     pub fn bind_recovery(&mut self, location: u64) {
         self.location = Some(location);
+        self.runtime_recovery = None;
         self.rmk_left = self.role == Some(Role::Left);
         self.rmk_receiver = self.role == Some(Role::Receiver);
         self.factory_right = false;
         self.shared_factory_origin = false;
         self.factory_dongle_origin = false;
+    }
+    /// A fresh local request identified RMK on this role and port. Reusing a
+    /// recovery serial cannot establish what firmware preceded recovery.
+    pub(crate) fn bind_runtime_recovery(&mut self, location: u64) {
+        self.bind_recovery(location);
+        self.runtime_recovery = self.role.map(|role| (role, location));
+    }
+    pub(crate) fn runtime_recovery_role(&self) -> Option<Role> {
+        let expected = self.runtime_recovery?;
+        let (role, location, _) = self.recovery_binding().ok()?;
+        ((role, location) == expected).then_some(role)
     }
     pub(crate) fn selected_component(&self) -> Option<Role> {
         self.role
@@ -446,7 +459,13 @@ impl Session {
     /// its complete original to be captured without a layout/version allowlist.
     /// Provenance alone never authorizes a firmware write.
     pub(crate) fn factory_recovery_role(&self) -> Option<Role> {
-        if self.archive_only || self.recovery_binding().is_err() {
+        self.recovery_binding().ok()?;
+        self.factory_origin_role()
+    }
+    /// Observed factory origin survives the USB reset while waiting for its
+    /// drive. It is not permission to save until recovery_binding also succeeds.
+    pub(crate) fn factory_origin_role(&self) -> Option<Role> {
+        if self.archive_only || self.location.is_none() || self.problem.is_some() {
             return None;
         }
         match self.role {

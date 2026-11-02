@@ -139,6 +139,8 @@ Moving from the older fork firmware to the upstream storage schema resets saved 
 
 An interrupted transfer can reuse a recovery serial previously confirmed for that part. Companion requires one live recovery drive and the expected bootloader metadata. Unknown or conflicting drives cannot authorize a write. Factory restore uses the retained original, a fresh backup and a new transfer record. Retrying an interrupted factory restore requires the same target and USB port. Only exact readback closes that attempt; the earlier record remains unverified.
 
+A remembered recovery serial identifies a part, not its previous firmware. If a reused drive has no usable factory original and does not already contain the exact target, Companion requires fresh normal-mode identification before installing. A fresh RMK recovery request can update existing RMK firmware without claiming a factory original; fresh factory recovery retains a restorable original first. An active factory recovery procedure keeps its observed provenance even when that part's serial is already remembered.
+
 ### Device acceptance
 
 The accepted ANSI package passed exact application readback, recovery entry, USB/Bluetooth/dongle typing, cross-half Shift, backlight synchronization, profile selection, sleep/wake and dongle reconnection. LEFT USB Vial remapping survived a restart.
