@@ -895,7 +895,15 @@ impl FirmwareJourney {
             error: self.machine.inner().error.clone(),
         }
     }
-    pub fn accept_recovery(&mut self, mut session: Session) -> Result<(), String> {
+    pub fn accept_recovery(&mut self, session: Session) -> Result<(), String> {
+        self.accept_recovery_with(session, Session::save_backup, FactoryRelease::discover)
+    }
+    fn accept_recovery_with(
+        &mut self,
+        mut session: Session,
+        save_backup: impl FnOnce(&mut Session) -> Result<PathBuf, String>,
+        originals: impl FnOnce() -> Result<FactoryRelease, String>,
+    ) -> Result<(), String> {
         if *self.machine.state() != Phase::Recovery {
             return Err("This recovery result is no longer needed.".into());
         }
@@ -907,7 +915,8 @@ impl FirmwareJourney {
             return Err("This recovery drive belongs to a different part.".into());
         }
         let stock_origin = session.factory_recovery_role();
-        let folder = session.save_backup()?;
+        let runtime_origin = session.runtime_recovery_role();
+        let folder = save_backup(&mut session)?;
         let bytes = device::read_bounded(&folder.join("CURRENT.UF2"), ARCHIVE_LIMIT)?;
         device::inspect_archive(&bytes)?;
         let stock_noop = self.is_factory()
@@ -931,20 +940,30 @@ impl FirmwareJourney {
             folder,
             bytes,
         };
-        if !self.is_factory() {
-            let mut originals = FactoryRelease::discover()?;
-            if stock_origin == Some(role) {
-                originals.capture_original(role, &baseline.bytes)?;
-            } else {
-                originals.retain_original(role, &baseline.bytes)?;
-            }
-        }
         let exact_target = self
             .machine
             .inner()
             .release
             .image(role)?
             .exact(&baseline.bytes)?;
+        if !self.is_factory() {
+            let mut originals = originals()?;
+            if stock_origin == Some(role) {
+                originals.capture_original(role, &baseline.bytes)?;
+            } else {
+                let retained = originals.retain_original(role, &baseline.bytes)?;
+                // A remembered serial proves the role, not whether recovery
+                // replaced factory or RMK firmware. Keep the raw backup, but
+                // require a usable original or fresh runtime evidence to write.
+                if !retained
+                    && !originals.has(role)
+                    && runtime_origin != Some(role)
+                    && !exact_target
+                {
+                    return Err("Restart this part in normal mode, then try Install RMK again. Companion needs to identify its current firmware before replacing it.".into());
+                }
+            }
+        }
         let installed = stock_noop || exact_target;
         if exact_target && self.is_factory() {
             record_factory_supersession(
@@ -1169,6 +1188,213 @@ fn record_transfer_outcome(
     // A UF2 target can reset before fsync acknowledges. Even a successful
     // flush cannot prove installation: both outcomes remain in Reconcile and
     // require exact readback. Never retry the copy here.
+}
+
+#[cfg(test)]
+mod original_eligibility_tests {
+    use super::*;
+
+    struct RecoveryFixture {
+        root: PathBuf,
+        role: Role,
+        snapshot: Snapshot,
+    }
+    impl RecoveryFixture {
+        fn new(role: Role) -> Self {
+            static SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+            let root = std::env::temp_dir().join(format!(
+                "nocfree-original-eligibility-{}-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos(),
+                SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            ));
+            fs::create_dir_all(root.join("readback")).unwrap();
+            Self {
+                role,
+                snapshot: Snapshot {
+                    devices: vec![device::Device {
+                        location: 10,
+                        vendor: 0x239a,
+                        product: 0x29,
+                        name: "NocFree &".into(),
+                    }],
+                    mounts: vec![BootMount {
+                        path: root.join("drive"),
+                        info: "UF2 Bootloader 0.9.2-39-g0147d71\nModel: NocFree &\nBoard-ID: NocFree &".into(),
+                    }],
+                },
+                root,
+            }
+        }
+        fn originals(&self) -> FactoryRelease {
+            FactoryRelease::at(self.root.join("factory-originals")).unwrap()
+        }
+        fn reused(&self) -> Session {
+            let mut session = Session::new();
+            session.select_recovery_role(self.role);
+            session.bind_recovery(10);
+            session.observe(Ok(self.snapshot.clone()));
+            session
+        }
+        fn factory(&self) -> Session {
+            let mut session = Session::new();
+            session.select_recovery_role(self.role);
+            let (vendor, product, name) = match self.role {
+                Role::Left => (0x2886, 0x8029, "NocFree & ANSI"),
+                Role::Right => (0x239a, 0x80d8, "NocFree nRF52833 Right"),
+                Role::Receiver => (0x2886, 0x8029, "NocFree_Dongle"),
+            };
+            session.observe(Ok(Snapshot {
+                devices: vec![device::Device {
+                    location: 10,
+                    vendor,
+                    product,
+                    name: name.into(),
+                }],
+                mounts: vec![],
+            }));
+            session.observe(Ok(self.snapshot.clone()));
+            session
+        }
+        fn accept(
+            &self,
+            journey: &mut FirmwareJourney,
+            session: Session,
+            archive: &[u8],
+        ) -> Result<(), String> {
+            let folder = self.root.join("readback");
+            fs::write(folder.join("CURRENT.UF2"), archive).unwrap();
+            // Substitute only OS discovery/backup IO. The production eligibility,
+            // reconciliation and original-store publication paths still run.
+            journey.accept_recovery_with(
+                session,
+                |_| Ok(folder),
+                || FactoryRelease::at(self.root.join("factory-originals")),
+            )
+        }
+        fn journey(&self) -> FirmwareJourney {
+            let mut journey =
+                FirmwareJourney::new_scoped(crate::release::fixture(), Scope::Part(self.role));
+            journey.authorize_install();
+            journey
+        }
+    }
+    impl Drop for RecoveryFixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.root);
+        }
+    }
+    fn unknown_factory() -> Vec<u8> {
+        let mut archive = device::tests::archive();
+        for block in archive.as_chunks_mut::<512>().0 {
+            if u32::from_le_bytes(block[12..16].try_into().unwrap()) == 0x27000 {
+                block[32..36].copy_from_slice(&0x20020000u32.to_le_bytes());
+                block[36..40].copy_from_slice(&0x27101u32.to_le_bytes());
+            }
+        }
+        archive
+    }
+    fn rmk_archive(role: Role) -> Vec<u8> {
+        let image = crate::release::fixture().image(role).clone();
+        let mut archive = device::tests::archive();
+        let (start, target) = target(&image).unwrap();
+        for (i, byte) in target.into_iter().enumerate() {
+            let offset = start + i;
+            archive[(offset / 256) * 512 + 32 + offset % 256] = byte;
+        }
+        archive
+    }
+
+    #[test]
+    fn reused_unknown_factory_cannot_transfer_until_fresh_capture_is_restorable() {
+        for role in [Role::Left, Role::Right, Role::Receiver] {
+            for interrupted_capture in [false, true] {
+                let fixture = RecoveryFixture::new(role);
+                let archive = unknown_factory();
+                assert!(FactoryRelease::archive_role(&archive).is_none());
+                assert_eq!(fixture.factory().factory_recovery_role(), Some(role));
+                if interrupted_capture {
+                    let vault = fixture.root.join("factory-originals");
+                    fs::create_dir(&vault).unwrap();
+                    let name = match role {
+                        Role::Left => "left",
+                        Role::Right => "right",
+                        Role::Receiver => "receiver",
+                    };
+                    fs::write(vault.join(format!("{name}.uf2")), &archive).unwrap();
+                }
+                // A new session models switching pages or restarting the app:
+                // the serial confirms the role, but carries no factory origin.
+                let mut journey = fixture.journey();
+                let error = fixture
+                    .accept(&mut journey, fixture.reused(), &archive)
+                    .unwrap_err();
+                assert!(error.contains("normal mode"));
+                assert!(!journey.view().can_transfer);
+                assert!(!fixture.originals().has(role));
+                assert!(
+                    fixture
+                        .originals()
+                        .import(role, &fixture.root.join("readback/CURRENT.UF2"))
+                        .is_err()
+                );
+                fixture
+                    .accept(&mut journey, fixture.factory(), &archive)
+                    .unwrap();
+                assert!(journey.view().can_transfer);
+                let original = fixture.originals();
+                original.image(role).unwrap().checked().unwrap();
+                assert!(FirmwareJourney::factory_scoped(original, Scope::Part(role)).is_ok());
+            }
+        }
+    }
+
+    #[test]
+    fn reused_rmk_target_is_noop_and_updates_require_original_or_fresh_runtime() {
+        for role in [Role::Left, Role::Right, Role::Receiver] {
+            let fixture = RecoveryFixture::new(role);
+            let mut archive = rmk_archive(role);
+            let mut current = fixture.journey();
+            fixture
+                .accept(&mut current, fixture.reused(), &archive)
+                .unwrap();
+            assert!(!current.view().can_transfer);
+            assert!(current.view().title.contains("Already"));
+            let origin = if role == Role::Receiver {
+                0x27000
+            } else {
+                0x1000
+            };
+            archive[((origin + 0x300 - 0x1000) / 256) * 512 + 32] ^= 1;
+            let mut update = fixture.journey();
+            assert!(
+                fixture
+                    .accept(&mut update, fixture.reused(), &archive)
+                    .is_err()
+            );
+            assert!(!update.view().can_transfer);
+            let mut runtime = Session::new();
+            runtime.select_recovery_role(role);
+            runtime.bind_runtime_recovery(10);
+            runtime.observe(Ok(fixture.snapshot.clone()));
+            fixture.accept(&mut update, runtime, &archive).unwrap();
+            assert!(update.view().can_transfer);
+            assert!(!fixture.originals().has(role));
+            fixture
+                .originals()
+                .capture_original(role, &unknown_factory())
+                .unwrap();
+            let mut resumed = fixture.journey();
+            fixture
+                .accept(&mut resumed, fixture.reused(), &archive)
+                .unwrap();
+            assert!(resumed.view().can_transfer);
+            assert!(fixture.originals().has(role));
+        }
+    }
 }
 
 #[cfg(test)]
