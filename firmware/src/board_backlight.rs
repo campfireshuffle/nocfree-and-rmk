@@ -1,7 +1,7 @@
 //! Board brightness; input events never wait for flash or PWM.
 use embassy_futures::{
     join::join,
-    select::{Either, Either3, Either4, select, select3, select4},
+    select::{Either, Either4, select, select4},
 };
 use embassy_sync::{
     blocking_mutex::raw::CriticalSectionRawMutex,
@@ -20,6 +20,8 @@ use rmk::{
 
 const SLOT: u8 = 0;
 const MAGIC: u8 = 0xb1;
+// LEFT refreshes every two seconds; tolerate missed heartbeats and scheduling delay.
+const SNAPSHOT_TIMEOUT: Duration = Duration::from_secs(6);
 #[derive(Clone, Copy, PartialEq, Eq)]
 struct Brightness {
     level: u8,
@@ -226,41 +228,54 @@ pub async fn run_right() -> ! {
     let mut messages = CustomMessage::subscriber();
     let mut links = CentralConnectedEvent::subscriber();
     let mut sleep = SleepStateEvent::subscriber();
-    let mut state = Brightness {
-        level: 0,
-        remembered: 1,
-        revision: 0,
-    };
-    let mut fresh = false;
+    let mut state: Option<Brightness> = None;
+    let mut expires = None;
     let mut connected = false;
     let mut sleeping = false;
     output(0, false);
     loop {
-        match select3(
+        match select4(
             messages.next_event(),
             links.next_event(),
             sleep.next_event(),
+            async move {
+                if let Some(deadline) = expires {
+                    Timer::at(deadline).await
+                } else {
+                    core::future::pending().await
+                }
+            },
         )
         .await
         {
-            Either3::First(message) => {
+            Either4::First(message) => {
                 if connected
                     && message.target == CustomMessageTarget::Peripherals
                     && let Some(new) = Brightness::decode(&message.data)
+                    && state.is_none_or(|old| new.revision.wrapping_sub(old.revision) < (1 << 31))
                 {
-                    if !fresh || new.revision.wrapping_sub(state.revision) < (1 << 31) {
-                        state = new;
-                        fresh = true;
-                    }
+                    state = Some(new);
+                    expires = Some(Instant::now() + SNAPSHOT_TIMEOUT);
                 }
             }
-            Either3::Second(event) => {
+            Either4::Second(event) => {
                 connected = event.connected;
-                fresh = false;
+                state = None;
+                expires = None;
             }
-            Either3::Third(event) => sleeping = event.0,
+            Either4::Third(event) => sleeping = event.0,
+            Either4::Fourth(()) => {}
         }
-        output(if connected && fresh { state.level } else { 0 }, sleeping);
+        // Check after every event as well as the timer, so unrelated traffic
+        // cannot starve expiry. Retain the revision until a real link event.
+        if expires.is_some_and(|deadline| Instant::now() >= deadline) {
+            expires = None;
+        }
+        let level = match state {
+            Some(state) if connected && expires.is_some() => state.level,
+            _ => 0,
+        };
+        output(level, sleeping);
     }
 }
 
@@ -386,6 +401,152 @@ mod tests {
                 assert_eq!(out.changed().await, 0);
                 publish_event(SleepStateEvent(false));
                 assert_eq!(out.changed().await, 7);
+            };
+            assert!(matches!(
+                select(run_right(), scenario).await,
+                Either::Second(())
+            ));
+        });
+    }
+}
+
+#[cfg(test)]
+mod freshness_tests {
+    use super::*;
+    use rmk::{event::publish_event, test_support::test_block_on};
+
+    fn message(level: u8, revision: u32) -> CustomMessage {
+        CustomMessage::new(
+            &Brightness {
+                level,
+                remembered: level.max(1),
+                revision,
+            }
+            .frame(),
+            CustomMessageTarget::Peripherals,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn silence_expires_without_losing_revision_order_and_sleep_does_not_refresh() {
+        test_block_on(async {
+            let mut out = output_receiver();
+            let scenario = async {
+                assert_eq!(out.changed().await, 0);
+                publish_event(CentralConnectedEvent { connected: true });
+                assert_eq!(out.changed().await, 0);
+                publish_event(message(9, 4));
+                assert_eq!(out.changed().await, 9);
+                Timer::after_secs(7).await;
+                assert_eq!(
+                    out.try_get(),
+                    Some(0),
+                    "silence must expire while connected"
+                );
+                publish_event(message(3, 2));
+                assert_eq!(
+                    out.changed().await,
+                    0,
+                    "expiry must not admit an older revision"
+                );
+                publish_event(message(9, 4));
+                assert_eq!(
+                    out.changed().await,
+                    9,
+                    "an equal-revision heartbeat restores output"
+                );
+                publish_event(SleepStateEvent(true));
+                assert_eq!(out.changed().await, 0);
+                Timer::after_secs(7).await;
+                assert_eq!(out.try_get(), Some(0));
+                publish_event(SleepStateEvent(false));
+                assert_eq!(
+                    out.changed().await,
+                    0,
+                    "wake must not revive an expired snapshot"
+                );
+                publish_event(message(10, 5));
+                assert_eq!(out.changed().await, 10);
+            };
+            assert!(matches!(
+                select(run_right(), scenario).await,
+                Either::Second(())
+            ));
+        });
+    }
+
+    #[test]
+    fn equal_revision_heartbeats_extend_freshness_and_reconnect_accepts_reboot() {
+        test_block_on(async {
+            let mut out = output_receiver();
+            let scenario = async {
+                assert_eq!(out.changed().await, 0);
+                publish_event(CentralConnectedEvent { connected: true });
+                assert_eq!(out.changed().await, 0);
+                publish_event(message(9, 4));
+                assert_eq!(out.changed().await, 9);
+                for _ in 0..4 {
+                    Timer::after_secs(2).await;
+                    assert_eq!(out.try_get(), Some(9));
+                    publish_event(message(9, 4));
+                    assert_eq!(out.changed().await, 9);
+                }
+                Timer::after_secs(5).await;
+                assert_eq!(
+                    out.try_get(),
+                    Some(9),
+                    "deadline follows the last valid heartbeat"
+                );
+                Timer::after_secs(2).await;
+                assert_eq!(out.try_get(), Some(0));
+                publish_event(message(9, 4));
+                assert_eq!(out.changed().await, 9);
+                publish_event(CentralConnectedEvent { connected: false });
+                assert_eq!(out.changed().await, 0);
+                publish_event(CentralConnectedEvent { connected: true });
+                assert_eq!(out.changed().await, 0);
+                publish_event(message(6, 1)); // LEFT rebooted during disconnection.
+                assert_eq!(out.changed().await, 6);
+            };
+            assert!(matches!(
+                select(run_right(), scenario).await,
+                Either::Second(())
+            ));
+        });
+    }
+
+    #[test]
+    fn continuous_invalid_or_stale_traffic_cannot_postpone_expiry() {
+        test_block_on(async {
+            let mut out = output_receiver();
+            let scenario = async {
+                assert_eq!(out.changed().await, 0);
+                publish_event(CentralConnectedEvent { connected: true });
+                assert_eq!(out.changed().await, 0);
+                publish_event(message(9, 4));
+                assert_eq!(out.changed().await, 9);
+                for i in 0..70 {
+                    let message = match i % 4 {
+                        0 => CustomMessage::new(&[MAGIC, 9], CustomMessageTarget::Peripherals)
+                            .unwrap(),
+                        1 => CustomMessage::new(
+                            &[MAGIC, 16, 5, 0, 0, 0],
+                            CustomMessageTarget::Peripherals,
+                        )
+                        .unwrap(),
+                        2 => message(3, 2),
+                        _ => CustomMessage::new(&message(12, 5).data, CustomMessageTarget::Central)
+                            .unwrap(),
+                    };
+                    publish_event(message);
+                    Timer::after_millis(100).await;
+                }
+                assert_eq!(
+                    out.try_get(),
+                    Some(0),
+                    "only accepted snapshots can refresh the deadline"
+                );
             };
             assert!(matches!(
                 select(run_right(), scenario).await,
