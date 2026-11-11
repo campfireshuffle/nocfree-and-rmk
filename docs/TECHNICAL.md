@@ -1,6 +1,6 @@
 # Technical guide
 
-Companion uses version 1.1.1 and bundles unchanged firmware 1.1.0. The firmware uses upstream RMK and keeps the factory bootloader. This guide covers board code, recovery, builds and releases.
+Companion 1.1.2 bundles firmware 1.1.2. The firmware uses upstream RMK and keeps the factory bootloader. This guide covers board code, recovery, builds and releases.
 
 ## Keyboard setup
 
