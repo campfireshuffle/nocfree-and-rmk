@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: paths
         if: github.event_name == 'push' || github.event_name == 'pull_request'
         with:
@@ -79,7 +79,7 @@ jobs:
           persist-credentials: false
       - name: Install pinned Rust toolchain
         run: rustup show active-toolchain
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: crates/nocfree-input -> target
           cache-bin: false
@@ -97,7 +97,7 @@ jobs:
           persist-credentials: false
       - name: Install Rust target and formatter
         run: rustup target add thumbv7em-none-eabihf && rustup component add rustfmt
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: firmware -> target
           shared-key: firmware-factory
@@ -131,7 +131,7 @@ jobs:
         run: |
           toolchain="$(rustup show active-toolchain | cut -d ' ' -f 1)"
           echo "RUSTUP_TOOLCHAIN=$toolchain" >> "$GITHUB_ENV"
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: desktop -> target
           shared-key: desktop-${{ runner.os }}-${{ runner.arch }}
