@@ -40,10 +40,12 @@ jobs:
               - 'rust-toolchain.toml'
               - '.cargo/**'
               - 'scripts/check.sh'
+              - 'scripts/install_ubuntu_packages.sh'
               - 'scripts/build_firmware_candidates.py'
               - '.github/workflows/check.yml'
             companion:
               - 'desktop/**'
+              - 'scripts/install_ubuntu_packages.sh'
               - 'scripts/copy_companion_firmware.py'
               - 'scripts/unpack_companion_release.py'
               - 'scripts/package_companion_release.py'
@@ -102,7 +104,7 @@ jobs:
           cache-bin: false
           save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: Install Arm build dependencies
-        run: sudo apt-get update && sudo apt-get install -y gcc-arm-none-eabi libnewlib-arm-none-eabi
+        run: bash scripts/install_ubuntu_packages.sh gcc-arm-none-eabi libnewlib-arm-none-eabi
       - name: Cross-build all factory-compatible RMK roles and layouts
         run: ./scripts/check.sh --build-only --all-layouts
 
@@ -123,9 +125,7 @@ jobs:
           persist-credentials: false
       - name: Install Linux desktop dependencies
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential clang cmake pkg-config libfontconfig1-dev libfreetype-dev libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-xkb-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libssl-dev libudev-dev libvulkan-dev zip
+        run: bash scripts/install_ubuntu_packages.sh build-essential clang cmake pkg-config libfontconfig1-dev libfreetype-dev libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev libxcb1-dev libxcb-xkb-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev libssl-dev libudev-dev libvulkan-dev zip
       - name: Install pinned desktop toolchain
         working-directory: desktop
         run: |
