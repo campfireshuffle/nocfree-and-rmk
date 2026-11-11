@@ -10,6 +10,8 @@ The keyboard images support four NocFree AND layouts. The right half sends keys 
 
 Install RMK remembers the layout chosen on its setup screen. Next starts installation only when the app includes firmware for that layout. The release includes ANSI, ISO, JIS and KR firmware.
 
+All layouts report the same firmware version. A matching version on a half still allows installation to start, including a change back to ANSI. Recovery compares the selected image with the application readback and skips writing an exact match. A dongle-only selection can use the version check because its image is shared by all layouts. Changing physical layout still requires the explicit settings reset described below.
+
 The scanner, default keys, split dimensions and Vial definition share one compile-time layout choice. ANSI is the default. Select `layout-iso`, `layout-jis` or `layout-kr` for both halves; these features are mutually exclusive. The dongle forwards reports and configuration to the left half and uses one common image.
 
 | Layout | Left keys | Right keys |
