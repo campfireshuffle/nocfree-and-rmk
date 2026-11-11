@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::path::{Component, Path};
 
 #[cfg(not(feature = "firmware-trial"))]
-const MANIFEST_SHA256: &str = "f99e2fe2b748ef3ee01c2804ca5d0aefa7a07ae0cdceff544ad232a9a6b791f3";
+const MANIFEST_SHA256: &str = "4af388295967013fac3fd947e7f394f2bdedc18473e1640db0ded9f673f6ef95";
 #[cfg(feature = "firmware-trial")]
 const MANIFEST_SHA256: &str = "336d6daaf028c897e5b6e0c2f70d78999d3b0ea6ce0bcd03b1d4d869eb162c92";
 const MAX_FILE: u64 = 1024 * 1024;
@@ -409,7 +409,7 @@ mod tests {
         // Packaging is required before this integration test, never silently skipped.
         let release = FirmwareRelease::load_from(&source).unwrap();
         assert_eq!(release.image(Role::Right).proof.role(), Role::Right);
-        assert_eq!(release.version(), "1.1.0");
+        assert_eq!(release.version(), "1.1.2");
         assert!(release.supports_layout(KeyboardLayout::Iso));
         assert!(release.supports_layout(KeyboardLayout::Jis));
         assert!(release.supports_layout(KeyboardLayout::Kr));

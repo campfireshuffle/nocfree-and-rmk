@@ -10,13 +10,13 @@ from image_guard import inspect as inspect_receiver
 from migration_guard import inspect_startup_image
 
 ROOT = Path(__file__).resolve().parents[1]
-VERSION = '1.1.0'
-MANIFEST_SHA256 = 'f99e2fe2b748ef3ee01c2804ca5d0aefa7a07ae0cdceff544ad232a9a6b791f3'
-SOURCE = '.evidence/native-release-1.1.0/companion'
+VERSION = '1.1.2'
+MANIFEST_SHA256 = '4af388295967013fac3fd947e7f394f2bdedc18473e1640db0ded9f673f6ef95'
+SOURCE = '.evidence/native-release-1.1.2/companion'
 ROLES = {
-    'left': ('native-release-1.1.0/companion', '592818dde1be286d4ed5b87e6e190cce875e5bacf78dfe69d5c3275ed35ae58a', '0669cd1c0cae13ae90e2fe2278409f83640674f3997a43e72e7e792b0ca03cbd', '6ddd1f942a986a0b8e268339e36113de9c73ce11', '434ab4d7d29d8e9ba689837358c8a44996ba38cc'),
-    'right': ('native-release-1.1.0/companion', '74b46f6a881f1da69a3eb883c22d2a0d829a04dc7c089583a2031b7ec86fb5b8', '373ba1405ca84ecdcecbc076588bba971ed179912a54c7eec86426c939250722', '6ddd1f942a986a0b8e268339e36113de9c73ce11', '434ab4d7d29d8e9ba689837358c8a44996ba38cc'),
-    'receiver': ('native-release-1.1.0/companion', '4dafd352037eb5bf1ed5c024992b1859a7a0b4587c50558e04e781eb3e6b5353', 'f8cb36d982f5a9b8d3bd1033aab59f31274734b5da08a416eabf03290cae8ca9', '6ddd1f942a986a0b8e268339e36113de9c73ce11', '434ab4d7d29d8e9ba689837358c8a44996ba38cc'),
+    'left': ('native-release-1.1.2/companion', 'e97deaed01379c72554bff9bb85c5d39d12248bd624b376ad0babbc920d4ecb2', 'f3efc065e0fbaa1f042c5ab386618f841ed81939bea6f57f5176f8e0e937bce7', '7b984e911266dee07486d1c712784671a78a03ed', '434ab4d7d29d8e9ba689837358c8a44996ba38cc'),
+    'right': ('native-release-1.1.2/companion', 'e411fa52d33e0f5705ba5e826f5b37704d0d4fc5007d7468c0af8bc52ed77979', 'dd4e2e7cce1397730a3c2585acee9f981f7fc8bd20027b9981fe6cb288bba71f', '7b984e911266dee07486d1c712784671a78a03ed', '434ab4d7d29d8e9ba689837358c8a44996ba38cc'),
+    'receiver': ('native-release-1.1.2/companion', 'ae969dc6f9857f58e29b4593dbaf9ad82a15d325b4c1619fb2c5636989b195ed', 'dcc7b978aafce429a3047a541f324b641e7907fe39601d0abf9f6d438a671536', '7b984e911266dee07486d1c712784671a78a03ed', '434ab4d7d29d8e9ba689837358c8a44996ba38cc'),
 }
 
 
