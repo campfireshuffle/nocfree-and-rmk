@@ -266,18 +266,32 @@ impl FactoryRelease {
             let path = release.root.join(format!("{}.uf2", name(role)));
             if fs::symlink_metadata(&path).is_ok() {
                 let raw = local_archive(&path)?;
-                release.images.push(release.load_original(role, &raw)?);
+                if let Some(image) = release.load_original(role, &raw)? {
+                    release.images.push(image);
+                }
             }
         }
         Ok(release)
     }
-    fn load_original(&self, role: Role, archive: &[u8]) -> Result<FactoryImage, String> {
+    /// An unknown original published without its proof is pending, not usable.
+    /// Keep discovery available so a fresh correlated capture can finish it.
+    fn load_original(&self, role: Role, archive: &[u8]) -> Result<Option<FactoryImage>, String> {
         let bytes = payload(archive)?;
         let proof = self.root.join(format!("{}.json", name(role)));
-        if fs::symlink_metadata(&proof).is_ok() {
-            return Self::recorded_image(role, archive, &proof);
+        match fs::symlink_metadata(&proof) {
+            Ok(_) => Self::recorded_image(role, archive, &proof).map(Some),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                if let Ok(image) = FactoryImage::new(role, bytes.clone()) {
+                    return Ok(Some(image));
+                }
+                validate_vectors(&bytes)?;
+                if Self::archive_role(archive).is_some() {
+                    return Err("Factory backup belongs to a different part.".into());
+                }
+                Ok(None)
+            }
+            Err(_) => Err("The factory backup record is unavailable.".into()),
         }
-        FactoryImage::new(role, bytes)
     }
     /// Only a fresh, correlated factory session may attest otherwise unknown
     /// originals. The record binds role and bytes, not a universal board identity.
@@ -297,7 +311,9 @@ impl FactoryRelease {
             if existing == archive && fs::symlink_metadata(&proof).is_err() {
                 save_original(&self.root, &proof, &record)?;
             }
-            let original = self.load_original(role, &existing)?;
+            let original = self.load_original(role, &existing)?.ok_or(
+                "An unfinished factory backup exists for this part. Reconnect its original factory firmware to finish saving it.",
+            )?;
             if original.bytes[..0x64000] != bytes[..0x64000] {
                 return Err("A different factory original is already saved for this part. Keep both backups before replacing it.".into());
             }
@@ -309,7 +325,10 @@ impl FactoryRelease {
         save_original(&self.root, &path, archive)?;
         save_original(&self.root, &proof, &record)?;
         self.images.retain(|image| image.role != role);
-        self.images.push(self.load_original(role, archive)?);
+        self.images.push(
+            self.load_original(role, archive)?
+                .ok_or("The factory backup record is missing.")?,
+        );
         Ok(())
     }
     pub fn missing(&self) -> Vec<Role> {
@@ -412,7 +431,8 @@ impl FactoryRelease {
         let path = self.root.join(format!("{}.uf2", name(role)));
         if fs::symlink_metadata(&path).is_ok() {
             let original = local_archive(&path)?;
-            self.load_original(role, &original)?;
+            self.load_original(role, &original)?
+                .ok_or("The saved factory backup is unfinished. Reconnect its original factory firmware to finish saving it.")?;
             return Ok(true);
         }
         save_original(&self.root, &path, archive)?;
@@ -519,13 +539,45 @@ mod tests {
         private_root(&root).unwrap();
         let raw = unknown_factory();
         save_original(&root, &root.join("left.uf2"), &raw).unwrap();
-        assert!(FactoryRelease::at(root.clone()).is_err());
-        let mut release = FactoryRelease {
-            root: root.clone(),
-            images: vec![],
-        };
+        let mut release = FactoryRelease::at(root.clone()).unwrap();
+        assert!(!release.has(Role::Left));
+        assert!(
+            crate::firmware_journey::FirmwareJourney::factory_scoped(
+                release.clone(),
+                crate::scope::Scope::Part(Role::Left)
+            )
+            .is_err()
+        );
+        assert!(release.import(Role::Left, &root.join("left.uf2")).is_err());
+        let mut other = raw.clone();
+        other[32 + 100] ^= 1;
+        assert!(release.capture_original(Role::Left, &other).is_err());
+        assert_eq!(fs::read(root.join("left.uf2")).unwrap(), raw);
+        assert!(!root.join("left.json").exists());
         release.capture_original(Role::Left, &raw).unwrap();
-        assert!(FactoryRelease::at(root.clone()).unwrap().has(Role::Left));
+        let reopened = FactoryRelease::at(root.clone()).unwrap();
+        assert!(reopened.has(Role::Left));
+        reopened.image(Role::Left).unwrap().checked().unwrap();
+        assert_eq!(fs::read(root.join("left.uf2")).unwrap(), raw);
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn pending_original_does_not_hide_other_roles_or_accept_invalid_proof() {
+        let root = temporary();
+        let raw = unknown_factory();
+        let mut release = FactoryRelease::at(root.clone()).unwrap();
+        release.capture_original(Role::Right, &raw).unwrap();
+        save_original(&root, &root.join("left.uf2"), &raw).unwrap();
+        let reopened = FactoryRelease::at(root.clone()).unwrap();
+        assert!(!reopened.has(Role::Left));
+        assert!(reopened.has(Role::Right));
+        fs::write(root.join("left.json"), b"{incomplete").unwrap();
+        assert!(FactoryRelease::at(root.clone()).is_err());
+        assert!(release.capture_original(Role::Left, &raw).is_err());
+        assert_eq!(fs::read(root.join("left.json")).unwrap(), b"{incomplete");
+        fs::remove_file(root.join("left.json")).unwrap();
+        fs::write(root.join("left.uf2"), b"incomplete UF2").unwrap();
+        assert!(FactoryRelease::at(root.clone()).is_err());
         fs::remove_dir_all(root).unwrap();
     }
     #[test]
