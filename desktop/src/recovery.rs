@@ -97,7 +97,7 @@ fn run_with(
             // after an interrupted transfer; a generic archive grants no role.
             if !archive_only && requested_location.is_none() {
                 let known = crate::status_cache::recovery_locations();
-                if let Some(location) = resume_location(role, &known, &snapshot)? {
+                if let Some(location) = resume_location(role, &known, &snapshot, session.factory_origin_role())? {
                     requested_location = Some(location);
                     mounting_at = Some(Instant::now());
                     let _ = progress.send(Procedure::RuntimeApp);
@@ -127,7 +127,11 @@ fn run_with(
                 // Bind and validate when recovery begins enumerating; discovery may
                 // still see the runtime device until its detach/reset has taken effect.
                 if snapshot.devices.iter().any(|device| device.bootloader()) || !snapshot.mounts.is_empty() {
-                    session.bind_recovery(location);
+                    if requested_at.is_some() {
+                        session.bind_runtime_recovery(location);
+                    } else {
+                        session.bind_recovery(location);
+                    }
                     session.observe(Ok(snapshot));
                     if let Some(error) = session.view().error { return Err(error); }
                     ready_drive = session.view().can_save;
@@ -161,18 +165,27 @@ fn resume_location(
     role: Role,
     known: &[Option<u64>; 3],
     snapshot: &device::Snapshot,
+    factory_origin: Option<Role>,
 ) -> Result<Option<u64>, String> {
+    if recovery_part_conflicts(role, known, snapshot) {
+        return Err("This recovery drive belongs to another part.".into());
+    }
+    // Continue the live factory-to-recovery correlation rather than replacing
+    // its provenance with the weaker serial-only binding from an earlier run.
+    if let Some(origin) = factory_origin {
+        return if origin == role {
+            Ok(None)
+        } else {
+            Err("The recovery session belongs to another part.".into())
+        };
+    }
     let index = match role {
         Role::Left => 0,
         Role::Right => 1,
         Role::Receiver => 2,
     };
     let Some(location) = known[index] else {
-        return if recovery_part_conflicts(role, known, snapshot) {
-            Err("This recovery drive belongs to another part.".into())
-        } else {
-            Ok(None)
-        };
+        return Ok(None);
     };
     let boots: Vec<_> = snapshot.devices.iter().filter(|d| d.bootloader()).collect();
     if boots.is_empty() && snapshot.mounts.is_empty() {
@@ -180,9 +193,6 @@ fn resume_location(
     }
     if boots.len() != 1 || snapshot.mounts.len() > 1 || boots[0].location != location {
         return Err("Connect only this part's recovery drive, then try again.".into());
-    }
-    if recovery_part_conflicts(role, known, snapshot) {
-        return Err("This recovery drive belongs to another part.".into());
     }
     if let Some(mount) = snapshot.mounts.first() {
         crate::session::validate_metadata(&mount.info)?;
@@ -405,6 +415,69 @@ mod tests {
         );
         assert_eq!(session.recovery_binding().unwrap().0, Role::Receiver);
         assert_eq!(session.factory_recovery_role(), Some(Role::Receiver));
+    }
+
+    #[test]
+    fn cached_serial_does_not_replace_a_live_factory_recovery_origin() {
+        for (index, role) in [Role::Left, Role::Right, Role::Receiver]
+            .into_iter()
+            .enumerate()
+        {
+            let mut session = Session::new();
+            session.select_recovery_role(role);
+            let mut disconnected = true;
+            factory_observation(&mut session, role, &mut disconnected, factory_normal(role))
+                .unwrap();
+            factory_observation(
+                &mut session,
+                role,
+                &mut disconnected,
+                device::Snapshot::default(),
+            )
+            .unwrap();
+            assert_eq!(session.factory_origin_role(), Some(role));
+            assert_eq!(session.factory_recovery_role(), None);
+            let mut known = [None; 3];
+            known[index] = Some(10);
+            let boot = factory_boot(10);
+            assert_eq!(
+                resume_location(role, &known, &boot, session.factory_origin_role()).unwrap(),
+                None
+            );
+            let mut conflicting = [None; 3];
+            conflicting[(index + 1) % 3] = Some(10);
+            assert!(
+                resume_location(role, &conflicting, &boot, session.factory_origin_role()).is_err()
+            );
+            assert!(
+                factory_observation(&mut session, role, &mut disconnected, boot)
+                    .unwrap()
+                    .1
+            );
+            assert_eq!(session.factory_recovery_role(), Some(role));
+            assert_eq!(session.runtime_recovery_role(), None);
+        }
+    }
+
+    #[test]
+    fn fresh_runtime_evidence_is_bound_to_role_port_and_current_recovery() {
+        let mut session = Session::new();
+        session.select_recovery_role(Role::Right);
+        session.bind_runtime_recovery(10);
+        assert_eq!(session.runtime_recovery_role(), None);
+        session.observe(Ok(factory_boot(11)));
+        assert_eq!(session.runtime_recovery_role(), None);
+        session.bind_runtime_recovery(10);
+        session.observe(Ok(factory_boot(10)));
+        assert_eq!(session.runtime_recovery_role(), Some(Role::Right));
+        assert_eq!(session.factory_recovery_role(), None);
+        session.bind_recovery(10);
+        session.observe(Ok(factory_boot(10)));
+        assert_eq!(session.runtime_recovery_role(), None);
+        session.bind_runtime_recovery(10);
+        session.select_recovery_role(Role::Left);
+        session.observe(Ok(factory_boot(10)));
+        assert_eq!(session.runtime_recovery_role(), None);
     }
 
     #[test]
@@ -768,7 +841,7 @@ mod tests {
             mounts: vec![],
         };
         assert_eq!(
-            resume_location(Role::Left, &[Some(7), None, None], &empty).unwrap(),
+            resume_location(Role::Left, &[Some(7), None, None], &empty, None).unwrap(),
             None
         );
         snapshot.devices.push(snapshot.devices[0].clone());
@@ -926,27 +999,27 @@ mod resume_tests {
             }],
         };
         assert_eq!(
-            resume_location(Role::Left, &[Some(7), None, None], &snapshot).unwrap(),
+            resume_location(Role::Left, &[Some(7), None, None], &snapshot, None).unwrap(),
             Some(7)
         );
-        assert!(resume_location(Role::Right, &[Some(7), None, None], &snapshot).is_err());
+        assert!(resume_location(Role::Right, &[Some(7), None, None], &snapshot, None).is_err());
         assert_eq!(
-            resume_location(Role::Left, &[None; 3], &snapshot).unwrap(),
+            resume_location(Role::Left, &[None; 3], &snapshot, None).unwrap(),
             None
         );
-        assert!(resume_location(Role::Left, &[Some(8), None, None], &snapshot).is_err());
+        assert!(resume_location(Role::Left, &[Some(8), None, None], &snapshot, None).is_err());
         let empty = device::Snapshot {
             devices: vec![],
             mounts: vec![],
         };
         assert_eq!(
-            resume_location(Role::Left, &[Some(7), None, None], &empty).unwrap(),
+            resume_location(Role::Left, &[Some(7), None, None], &empty, None).unwrap(),
             None
         );
         snapshot.devices.push(snapshot.devices[0].clone());
-        assert!(resume_location(Role::Left, &[Some(7), None, None], &snapshot).is_err());
+        assert!(resume_location(Role::Left, &[Some(7), None, None], &snapshot, None).is_err());
         snapshot.devices.pop();
         snapshot.mounts[0].info = "Different bootloader".into();
-        assert!(resume_location(Role::Left, &[Some(7), None, None], &snapshot).is_err());
+        assert!(resume_location(Role::Left, &[Some(7), None, None], &snapshot, None).is_err());
     }
 }

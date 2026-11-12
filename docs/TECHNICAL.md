@@ -141,6 +141,8 @@ Moving from the older fork firmware to the upstream storage schema resets saved 
 
 An interrupted transfer can reuse a recovery serial previously confirmed for that part. Companion requires one live recovery drive and the expected bootloader metadata. Unknown or conflicting drives cannot authorize a write. Factory restore uses the retained original, a fresh backup and a new transfer record. Retrying an interrupted factory restore requires the same target and USB port. Only exact readback closes that attempt; the earlier record remains unverified.
 
+A remembered recovery serial identifies a part, not its previous firmware. If a reused drive has no usable factory original and does not already contain the exact target, Companion requires fresh normal-mode identification before installing. A fresh RMK recovery request can update existing RMK firmware without claiming a factory original; fresh factory recovery retains a restorable original first. An active factory recovery procedure keeps its observed provenance even when that part's serial is already remembered.
+
 ### Device acceptance
 
 The accepted ANSI package passed exact application readback, recovery entry, USB/Bluetooth/dongle typing, cross-half Shift, backlight synchronization, profile selection, sleep/wake and dongle reconnection. LEFT USB Vial remapping survived a restart.
@@ -188,6 +190,8 @@ Battery conversion uses `BatteryProcessor::new(100, 150)`. Calibration work is t
 Use **Companion → Enter recovery mode**, choose a part, and follow the instructions. Companion uses LEFT’s local VIA bootloader request and local DFU DETACH on RIGHT and the dongle. The unchanged factory bootloader presents the **NocFree &** drive.
 
 Install RMK keeps a separate original backup for each half and the dongle. Backups contain the application and system settings. The MBR, bootloader and UICR stay on the board. When restoring an application-only factory UF2, Companion can use the original backup to restore system settings. Use the backup for the selected part.
+
+An interrupted original capture can leave a complete archive without its factory provenance record. Companion keeps that original unavailable for restoration while allowing a fresh correlated factory session to finish the exact same capture. It never replaces the unfinished original with different bytes. Complete originals for other parts remain available.
 
 USB can power the right MCU while its battery switch is OFF. If the right remains in recovery after a write, turn it OFF and remove USB before restarting as instructed. For the factory right-half Fn+0 recovery procedure, keep the left connected.
 
