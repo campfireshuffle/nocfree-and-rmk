@@ -95,7 +95,15 @@ pub fn output_receiver() -> OutputReceiver {
     OUTPUT.receiver().expect("one PWM owner")
 }
 fn output(level: u8, sleeping: bool) {
-    OUTPUT.sender().send(if sleeping { 0 } else { level });
+    let level = if sleeping { 0 } else { level };
+    // Heartbeats refresh link freshness without restarting unchanged PWM output.
+    OUTPUT.sender().send_if_modified(|current| {
+        if *current == Some(level) {
+            return false;
+        }
+        *current = Some(level);
+        true
+    });
 }
 #[cfg(test)]
 static SNAPSHOTS: core::sync::atomic::AtomicUsize = core::sync::atomic::AtomicUsize::new(0);
@@ -280,8 +288,37 @@ pub async fn run_right() -> ! {
 }
 
 #[cfg(test)]
+async fn assert_output_unchanged(out: &mut OutputReceiver, level: u8) {
+    assert!(
+        embassy_time::with_timeout(Duration::from_millis(1), out.changed())
+            .await
+            .is_err(),
+        "unchanged output must not notify PWM"
+    );
+    assert_eq!(out.try_get(), Some(level));
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn pwm_notifications_follow_effective_brightness_changes() {
+        let mut out = output_receiver();
+        output(0, false);
+        assert_eq!(out.try_changed(), Some(0));
+        output(0, false);
+        assert_eq!(out.try_changed(), None);
+        output(9, false);
+        assert_eq!(out.try_changed(), Some(9));
+        output(9, false);
+        assert_eq!(out.try_changed(), None);
+        output(9, true);
+        assert_eq!(out.try_changed(), Some(0));
+        output(10, true);
+        assert_eq!(out.try_changed(), None);
+        output(10, false);
+        assert_eq!(out.try_changed(), Some(10));
+    }
     #[test]
     fn steps_are_bounded() {
         let mut state = Brightness::new();
@@ -374,7 +411,7 @@ mod tests {
             let scenario = async {
                 assert_eq!(out.changed().await, 0);
                 publish_event(CentralConnectedEvent { connected: true });
-                assert_eq!(out.changed().await, 0);
+                assert_output_unchanged(&mut out, 0).await;
                 let message = |level, revision| {
                     CustomMessage::new(
                         &Brightness {
@@ -390,11 +427,11 @@ mod tests {
                 publish_event(message(9, 4));
                 assert_eq!(out.changed().await, 9);
                 publish_event(message(3, 2));
-                assert_eq!(out.changed().await, 9); // stale snapshot cannot revert output
+                assert_output_unchanged(&mut out, 9).await; // stale snapshot cannot revert output
                 publish_event(CentralConnectedEvent { connected: false });
                 assert_eq!(out.changed().await, 0);
                 publish_event(CentralConnectedEvent { connected: true });
-                assert_eq!(out.changed().await, 0);
+                assert_output_unchanged(&mut out, 0).await;
                 publish_event(message(7, 1)); // LEFT reboot: first fresh snapshot accepted
                 assert_eq!(out.changed().await, 7);
                 publish_event(SleepStateEvent(true));
@@ -435,7 +472,7 @@ mod freshness_tests {
             let scenario = async {
                 assert_eq!(out.changed().await, 0);
                 publish_event(CentralConnectedEvent { connected: true });
-                assert_eq!(out.changed().await, 0);
+                assert_output_unchanged(&mut out, 0).await;
                 publish_event(message(9, 4));
                 assert_eq!(out.changed().await, 9);
                 Timer::after_secs(7).await;
@@ -445,11 +482,8 @@ mod freshness_tests {
                     "silence must expire while connected"
                 );
                 publish_event(message(3, 2));
-                assert_eq!(
-                    out.changed().await,
-                    0,
-                    "expiry must not admit an older revision"
-                );
+                // Expiry must not admit an older revision or restart zero output.
+                assert_output_unchanged(&mut out, 0).await;
                 publish_event(message(9, 4));
                 assert_eq!(
                     out.changed().await,
@@ -461,11 +495,8 @@ mod freshness_tests {
                 Timer::after_secs(7).await;
                 assert_eq!(out.try_get(), Some(0));
                 publish_event(SleepStateEvent(false));
-                assert_eq!(
-                    out.changed().await,
-                    0,
-                    "wake must not revive an expired snapshot"
-                );
+                // Wake must not revive an expired snapshot or restart zero output.
+                assert_output_unchanged(&mut out, 0).await;
                 publish_event(message(10, 5));
                 assert_eq!(out.changed().await, 10);
             };
@@ -483,14 +514,14 @@ mod freshness_tests {
             let scenario = async {
                 assert_eq!(out.changed().await, 0);
                 publish_event(CentralConnectedEvent { connected: true });
-                assert_eq!(out.changed().await, 0);
+                assert_output_unchanged(&mut out, 0).await;
                 publish_event(message(9, 4));
                 assert_eq!(out.changed().await, 9);
                 for _ in 0..4 {
                     Timer::after_secs(2).await;
                     assert_eq!(out.try_get(), Some(9));
                     publish_event(message(9, 4));
-                    assert_eq!(out.changed().await, 9);
+                    assert_output_unchanged(&mut out, 9).await;
                 }
                 Timer::after_secs(5).await;
                 assert_eq!(
@@ -505,7 +536,7 @@ mod freshness_tests {
                 publish_event(CentralConnectedEvent { connected: false });
                 assert_eq!(out.changed().await, 0);
                 publish_event(CentralConnectedEvent { connected: true });
-                assert_eq!(out.changed().await, 0);
+                assert_output_unchanged(&mut out, 0).await;
                 publish_event(message(6, 1)); // LEFT rebooted during disconnection.
                 assert_eq!(out.changed().await, 6);
             };
@@ -523,7 +554,7 @@ mod freshness_tests {
             let scenario = async {
                 assert_eq!(out.changed().await, 0);
                 publish_event(CentralConnectedEvent { connected: true });
-                assert_eq!(out.changed().await, 0);
+                assert_output_unchanged(&mut out, 0).await;
                 publish_event(message(9, 4));
                 assert_eq!(out.changed().await, 9);
                 for i in 0..70 {
