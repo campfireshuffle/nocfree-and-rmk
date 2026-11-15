@@ -6,15 +6,18 @@ Install RMK on your NocFree AND keyboard with a [guided app](https://nocfree-rmk
 
 ## Download
 
+> [!WARNING]
+> A user reported that their USB dongle stopped working after using Companion on Windows. Please do not use the Windows version for now. A software update will follow. See [tracking issue #49](https://github.com/campfireshuffle/nocfree-and-rmk/issues/49).
+
 | Computer | App |
 | --- | --- |
 | Mac with Apple Silicon | [Download for Mac](https://github.com/campfireshuffle/nocfree-and-rmk/releases/latest/download/nocfree-rmk-companion-macos-arm64.zip) |
-| Windows, 64-bit | [Download for Windows](https://github.com/campfireshuffle/nocfree-and-rmk/releases/latest/download/nocfree-rmk-companion-windows-x86_64.zip) |
+| Windows, 64-bit | Please wait for an update |
 | Linux, 64-bit | [Download for Linux](https://github.com/campfireshuffle/nocfree-and-rmk/releases/latest/download/nocfree-rmk-companion-linux-x86_64.tar.gz) |
 
 On Mac, open the ZIP file and move **NocFree RMK Companion** to **Applications**.
 
-On Windows, open the ZIP file, keep all its files together, then open **nocfree-companion.exe**. On Linux, open the archive and follow the included **README.txt**.
+On Linux, open the archive and follow the included **README.txt**.
 
 On Mac, you can also use Homebrew:
 
