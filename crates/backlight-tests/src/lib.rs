@@ -8,6 +8,10 @@ pub mod board_status_led;
 pub mod board_backlight;
 
 #[cfg(test)]
+#[path = "../../../firmware/src/board_pwm.rs"]
+mod board_pwm;
+
+#[cfg(test)]
 mod review {
     use embassy_futures::{
         join::join,
